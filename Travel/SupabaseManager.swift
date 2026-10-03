@@ -58,14 +58,6 @@ final class SupabaseManager: ObservableObject {
 
 
 // cose da fare:
-// 1) comprendere sintassi e gestione autenticazione
-// 2) decidere quanto far durare la sessione
-// 3) mettere un bottone di logout
-// 4) ognuno può modificare/eliminare solo le proprie esperienze
-// 5) tutti possono vedere le esperienze di ognuno
-// 6) fatta la registrazione deve mandarti al login
-
-
-// 1) Supabase gestisce i field email e password. Io praticamente li richiedo e poi li mando tramite SupabaseManager. Una volta autenticato restituisce la sessione
-// Ogni volta che apro l'app SupabaseManager verifica se la sessione è ancora attiva
-// NB: L'eliminazione funziona bene!
+// 1) registrazione -> login una volta registrato
+// 2) Gestisci meglio le caselle di testo libere (es. luoghi con ricerca a selezione!)
+// 3) Sistema un po' la grafica

@@ -28,6 +28,8 @@ struct AddExperienceView: View {
     @State private var durata = ""
     @State private var selectedTipologia : TipologiaEnum = .moto
     @State private var selectedDifficolta : DifficoltaEnum = .easy
+    @State private var showAlert = false
+    @State private var alertMessage = ""
     
     // Gestione delle tappe: la prima è sempre presente (obbligatoria), fino a un massimo di 5
     @State private var stepsArray: [String] = [""]
@@ -148,6 +150,12 @@ struct AddExperienceView: View {
                 }
             }
             
+            .alert("Azione non consentita", isPresented: $showAlert) {
+                        Button("OK", role: .cancel) { }
+                    } message: {
+                        Text(alertMessage)
+                    }
+            
             .onAppear() { // .onAppear è un modificatore che viene eseguito appena viene visualizzata la schermata
                 if let exp = experienceToEdit {
                     title = exp.title
@@ -157,7 +165,7 @@ struct AddExperienceView: View {
                     km = String(exp.km)
                     durata = String(exp.durata)
                     selectedTipologia = exp.type
-                    selectedDifficolta = exp.difficoltà
+                    selectedDifficolta = exp.difficolta
 
                     if !exp.steps.isEmpty {
                         stepsArray = exp.steps
@@ -228,7 +236,7 @@ struct AddExperienceView: View {
             let durata: Double
             let steps: [String]
             let type: String
-            let difficoltà: String
+            let difficolta: String
             let user_id: UUID?
         }
 
@@ -242,13 +250,23 @@ struct AddExperienceView: View {
             durata: durataDouble,
             steps: cleanedSteps,
             type: selectedTipologia.rawValue,
-            difficoltà: selectedDifficolta.rawValue,
+            difficolta: selectedDifficolta.rawValue,
             user_id: currentUserId
         )
+        
+        let currentUser = SupabaseManager.shared.client.auth.currentSession?.user
 
         do {
-            
             if let expToEdit = experienceToEdit{
+                // CONTROLLO DI SICUREZZA
+                if expToEdit.user_id != currentUserId {
+                    await MainActor.run {
+                        self.alertMessage = "Non hai i permessi per modificare questa esperienza."
+                        self.showAlert = true
+                    }
+                    return
+                }
+                
                 //Modifica UPDATE
                 let id = expToEdit.id
                 try await SupabaseManager.shared.client

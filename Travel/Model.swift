@@ -21,7 +21,7 @@ struct Experience: Identifiable, Codable { // ogni experience è unica, Codable 
     let durata: Double
     let steps: [String]
     let type: TipologiaEnum
-    let difficoltà: DifficoltaEnum
+    let difficolta: DifficoltaEnum
     let user_id: UUID?
     
     

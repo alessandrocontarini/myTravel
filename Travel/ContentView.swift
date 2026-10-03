@@ -14,6 +14,8 @@ struct ContentView: View {
     @State private var experiences: [Experience] = [] //State è una proprietà di stato reattiva
     @State private var errorMessage: String? = nil
     @State private var showingAddView = false // stato per aprire/chiudere il modulo
+    @State private var showAlert = false
+    @State private var alertMessage = ""
 
     var body: some View {
         NavigationStack { //contenitore di navigazione std di iOS
@@ -44,7 +46,7 @@ struct ContentView: View {
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text("\(experience.title) \(experience.type.rawValue)")
                                             .font(.headline)
-                                        Text("Difficoltà: \(experience.difficoltà.rawValue)")
+                                        Text("Difficoltà: \(experience.difficolta.rawValue)")
                                             .font(.subheadline)
                                             .foregroundColor(.secondary)
                                         Text("Prezzo: €\(experience.price, specifier: "%.2f")")
@@ -59,6 +61,12 @@ struct ContentView: View {
                     }
                 }
             }
+            .alert("Azione non consentita", isPresented: $showAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(alertMessage)
+            }
+            
             .navigationTitle("Esplora Viaggi")
             .toolbar{
                 // Gestione Frontend del VStack
@@ -67,7 +75,22 @@ struct ContentView: View {
                     EditButton()
                 }
                 
-                // 2. BOTTONE AGGIUNGI
+                // 2. BOTTONE LOGOUT
+                ToolbarItem(placement: .navigationBarLeading){
+                    Button(action: {
+                        Task{
+                            do{
+                                try await SupabaseManager.shared.signOut()
+                            }catch{
+                                print ("Errore durante il logout: \(error.localizedDescription)")
+                            }
+                        }
+                    }){
+                        Image(systemName: "rectangle.portrait.and.arrow.right").foregroundColor(.red)
+                    }
+                }
+                
+                // 3. BOTTONE AGGIUNGI
                 ToolbarItem(placement: .primaryAction) {
                     Button(action: {
                         showingAddView = true
@@ -130,6 +153,10 @@ struct ContentView: View {
                 // CONTROLLO DI SICUREZZA: se l'ID non coincide, blocchiamo l'eliminazione
                 if experienceToDelete.user_id != currentUserId {
                     print("Tentativo di eliminazione bloccato: non sei il proprietario di questa esperienza.")
+                    await MainActor.run {
+                        self.alertMessage = "Non hai i permessi per modificare questa esperienza"
+                        self.showAlert = true
+                    }
                     continue // Salva e salta questo elemento senza cancellarlo
                 }
 
@@ -159,3 +186,7 @@ struct ContentView: View {
 }
 
 
+// NB: In SwiftUI l'interfaccia utente si ridisegna in base ai cambiamenti di stato, quindi serve:
+//      1) Una variabile di stato che faccia da interruttore
+//      2) Il modificatore .alert() attaccato alla vista
+//      3) Il cambio di stato quandi vuoi mostrarlo
