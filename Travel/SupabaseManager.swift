@@ -58,6 +58,9 @@ final class SupabaseManager: ObservableObject {
 
 
 // cose da fare:
-// 1) registrazione -> login una volta registrato
+// 1) Fai test su inserimento e modifica, generali
 // 2) Gestisci meglio le caselle di testo libere (es. luoghi con ricerca a selezione!)
-// 3) Sistema un po' la grafica
+// 3) Sistema un po' la grafica!
+// 4) Pulisci il codice in modo che sia comprensibile
+// 5) Valuta se pubblicare
+

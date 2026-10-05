@@ -94,6 +94,11 @@ struct AuthView: View {
         do {
             if isSignUp {
                 try await SupabaseManager.shared.signUp(email: email, password: password)
+                // Se arrivi qua, la registrazione è riuscita:
+                await MainActor.run {
+                    isSignUp = false // riporta l'interfaccia alla modalità login
+                    password = "" // pulisce la pw per sicurezza
+                }
             } else {
                 try await SupabaseManager.shared.signIn(email: email, password: password)
             }

@@ -9,13 +9,14 @@ import SwiftUI
 import PhotosUI
 import Supabase
 import PostgREST
+import MapKit
 
 struct AddExperienceView: View {
     
     // Per chiudere la schermata modale una volta salvato
-    @Environment(\.dismiss) private var dismiss //recupera dall'ambiente la proprietà di chiusura nativa
+    @Environment(\.dismiss) private var dismiss
     
-    var onExperienceAdded: () -> Void //Closure => funzione passata come parametro, in attesa di essere eseguita. Vista quindi dal genitore (ContentView)
+    var onExperienceAdded: () -> Void
     
     var experienceToEdit: Experience? = nil
     
@@ -30,13 +31,14 @@ struct AddExperienceView: View {
     @State private var selectedDifficolta : DifficoltaEnum = .easy
     @State private var showAlert = false
     @State private var alertMessage = ""
+    @StateObject private var locationSearch = LocationSearchViewModel()
     
     // Gestione delle tappe: la prima è sempre presente (obbligatoria), fino a un massimo di 5
     @State private var stepsArray: [String] = [""]
     
     // Gestione della selezione dell'immagine da locale
-    @State private var selectedItem: PhotosPickerItem? = nil // gestisce l'oggetto multimediale
-    @State private var selectedImageData: Data? = nil // converte l'oggetto in dati grezzi da caricare su Supabase
+    @State private var selectedItem: PhotosPickerItem? = nil
+    @State private var selectedImageData: Data? = nil
     
     // Stato per gestire eventuali messaggi di errore a schermo se mancano campi
     @State private var errorMessage: String? = nil
@@ -60,14 +62,14 @@ struct AddExperienceView: View {
                             Text(tipo.rawValue).tag(tipo).font(.headline)
                         }
                     }
-                    .pickerStyle(.segmented) // Oppure .menu a seconda dello stile che preferisci
+                    .pickerStyle(.segmented)
                 }
-                
+                 
                 Section(header: Text("Informazioni Generali *")) {
                     TextField("Titolo", text: $title)
                     TextField("Prezzo", text: $price)
                 }
-                
+                 
                 Section(header: Text("Seleziona la difficoltà")) {
                     Picker("Difficoltà", selection: $selectedDifficolta) {
                         ForEach(DifficoltaEnum.allCases) { diff in
@@ -78,7 +80,30 @@ struct AddExperienceView: View {
                 }
 
                 Section(header: Text("Dettagli Percorso *")) {
+                    // Campo di testo per la partenza con ricerca in tempo reale
                     TextField("Città / Luogo di Partenza", text: $partenza)
+                        .onChange(of: partenza) { _, newValue in
+                            locationSearch.updateQuery(query: newValue)
+                        }
+                     
+                    // Lista a tendina per la partenza
+                    if !locationSearch.searchResults.isEmpty && !partenza.isEmpty {
+                        ForEach(locationSearch.searchResults.prefix(5), id: \.self) { result in
+                            Button(action: {
+                                partenza = "\(result.title), \(result.subtitle)"
+                                locationSearch.searchResults = []
+                            }) {
+                                VStack(alignment: .leading) {
+                                    Text(result.title)
+                                        .foregroundColor(.primary)
+                                    Text(result.subtitle)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                        }
+                    }
+                     
                     TextField("Chilometri (km)", text: $km)
                     TextField("Durata (ore)", text: $durata)
                 }
@@ -103,25 +128,46 @@ struct AddExperienceView: View {
                     TextField("Link Google Maps (opzionale)", text: $linkMaps)
                 }
 
-                // Sezione tappe: 1 obbligatoria, fino a 5 opzionali in totale
+                // Sezione tappe con ricerca e tendina integrata per ciascuna riga
                 Section(header: Text("Principali tappe"), footer: Text("La prima tappa è obbligatoria. Puoi aggiungerne fino ad altre 4 opzionali.")) {
                     ForEach(0..<stepsArray.count, id: \.self) { index in
-                        HStack {
-                            TextField(index == 0 ? "Tappa 1 (Obbligatoria)" : "Tappa \(index + 1) (Opzionale)", text: $stepsArray[index])
-                            
-                            // Permettiamo di rimuovere la tappa solo se ce n'è più di una (lasciando sempre almeno la prima)
-                            if stepsArray.count > 1 {
-                                Button(action: {
-                                    stepsArray.remove(at: index)
-                                }) {
-                                    Image(systemName: "minus.circle.fill")
-                                        .foregroundColor(.red)
+                        VStack(alignment: .leading) {
+                            HStack {
+                                TextField(index == 0 ? "Tappa 1 (Obbligatoria)" : "Tappa \(index + 1) (Opzionale)", text: $stepsArray[index])
+                                    .onChange(of: stepsArray[index]) { _, newValue in
+                                        locationSearch.updateQuery(query: newValue)
+                                    }
+                                 
+                                if stepsArray.count > 1 {
+                                    Button(action: {
+                                        stepsArray.remove(at: index)
+                                    }) {
+                                        Image(systemName: "minus.circle.fill")
+                                            .foregroundColor(.red)
+                                    }
+                                }
+                            }
+                             
+                            // Tendina suggerimenti per questa specifica tappa
+                            if !locationSearch.searchResults.isEmpty && !stepsArray[index].isEmpty {
+                                ForEach(locationSearch.searchResults.prefix(5), id: \.self) { result in
+                                    Button(action: {
+                                        stepsArray[index] = "\(result.title), \(result.subtitle)"
+                                        locationSearch.searchResults = []
+                                    }) {
+                                        VStack(alignment: .leading) {
+                                            Text(result.title)
+                                                .foregroundColor(.primary)
+                                            Text(result.subtitle)
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
-                    
-                    // Mostra il pulsante di aggiunta finché non si raggiungono 5 tappe
+                     
                     if stepsArray.count < 5 {
                         Button(action: {
                             stepsArray.append("")
@@ -149,14 +195,14 @@ struct AddExperienceView: View {
                     }
                 }
             }
-            
+             
             .alert("Azione non consentita", isPresented: $showAlert) {
-                        Button("OK", role: .cancel) { }
-                    } message: {
-                        Text(alertMessage)
-                    }
-            
-            .onAppear() { // .onAppear è un modificatore che viene eseguito appena viene visualizzata la schermata
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(alertMessage)
+            }
+             
+            .onAppear() {
                 if let exp = experienceToEdit {
                     title = exp.title
                     price = String(exp.price)
@@ -172,38 +218,74 @@ struct AddExperienceView: View {
                     }
                 }
             }
-        
         }
     }
-        
+         
     // Funzione asincrona di validazione e salvataggio
     private func saveExperience() async {
-        // 1. VALIDAZIONE CAMPI OBBLIGATORI
+        // 1. CONTROLLO CAMPI OBBLIGATORI
         let trimmedTitle = title.trimmingCharacters(in: .whitespaces)
         let trimmedPartenza = partenza.trimmingCharacters(in: .whitespaces)
         let cleanedSteps = stepsArray.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-        
+         
         if trimmedTitle.isEmpty || price.isEmpty || trimmedPartenza.isEmpty || km.isEmpty || durata.isEmpty {
             await MainActor.run {
-                errorMessage = "Compila tutti i campi obbligatori (Titolo, Descrizione, Prezzo, Partenza, Km, Durata)."
+                errorMessage = "Compila tutti i campi obbligatori (Titolo, Prezzo, Partenza, Km, Durata)."
             }
             return
         }
-        
-        // 2. VALIDAZIONE TAPPA OBBLIGATORIA (la prima non deve essere vuota)
+         
         if cleanedSteps.isEmpty {
             await MainActor.run {
                 errorMessage = "Inserisci almeno la prima tappa obbligatoria."
             }
             return
         }
+         
+        // 2. VALIDAZIONE SEVERA: La partenza e le tappe devono contenere una località valida con formato standard (es. con la virgola della tendina)
+        var locationsToVerify = [trimmedPartenza]
+        locationsToVerify.append(contentsOf: cleanedSteps)
+         
+        for location in locationsToVerify {
+            // Se la stringa inserita non contiene una virgola (significa che non è stata selezionata dalla tendina ufficiale)
+            if !location.contains(",") {
+                await MainActor.run {
+                    self.alertMessage = "Il luogo '\(location)' non è valido. Seleziona un indirizzo ufficiale dai suggerimenti della lista."
+                    self.showAlert = true
+                }
+                return
+            }
+            
+            // Controllo supplementare con MapKit
+            let request = MKLocalSearch.Request()
+            request.naturalLanguageQuery = location
+            let search = MKLocalSearch(request: request)
+             
+            do {
+                let response = try await search.start()
+                if response.mapItems.isEmpty {
+                    await MainActor.run {
+                        self.alertMessage = "Il luogo '\(location)' non esiste o non è stato trovato."
+                        self.showAlert = true
+                    }
+                    return
+                }
+            } catch {
+                await MainActor.run {
+                    self.alertMessage = "Impossibile verificare il luogo '\(location)'."
+                    self.showAlert = true
+                }
+                return
+            }
+        }
+        
 
         let priceDouble = Double(price) ?? 0.0
         let kmDouble = Double(km) ?? 0.0
         let durataDouble = Double(durata) ?? 0.0
-        
+         
         var imageNameFinal = experienceToEdit?.image_name ?? "default.jpg"
-        
+         
         if let imageData = selectedImageData {
             let uniqueFileName = "\(UUID().uuidString).jpg"
             do {
@@ -225,8 +307,8 @@ struct AddExperienceView: View {
         }
 
         let currentUserId = SupabaseManager.shared.client.auth.currentSession?.user.id
-        
-        struct NewExperienceData: Encodable { // Encodable serve a impacchettare tutte le variabili in JSON pronto per il db
+         
+        struct NewExperienceData: Encodable {
             let title: String
             let price: Double
             let image_name: String
@@ -253,21 +335,17 @@ struct AddExperienceView: View {
             difficolta: selectedDifficolta.rawValue,
             user_id: currentUserId
         )
-        
-        let currentUser = SupabaseManager.shared.client.auth.currentSession?.user
 
         do {
-            if let expToEdit = experienceToEdit{
-                // CONTROLLO DI SICUREZZA
-                if expToEdit.user_id != currentUserId {
+            if let expToEdit = experienceToEdit {
+                if expToEdit.user_id != nil && expToEdit.user_id != currentUserId {
                     await MainActor.run {
                         self.alertMessage = "Non hai i permessi per modificare questa esperienza."
                         self.showAlert = true
                     }
                     return
                 }
-                
-                //Modifica UPDATE
+                 
                 let id = expToEdit.id
                 try await SupabaseManager.shared.client
                     .from("Experience")
@@ -275,8 +353,7 @@ struct AddExperienceView: View {
                     .eq("id", value: id)
                     .execute()
                 print("Modifica riuscita con successo!")
-            } else{
-                // Inserimento INSERT
+            } else {
                 try await SupabaseManager.shared.client
                     .from("Experience")
                     .insert(newExp)
@@ -284,8 +361,8 @@ struct AddExperienceView: View {
                 print("Inserimento riuscito con successo!")
             }
             await MainActor.run {
-                onExperienceAdded() // codice fornito dal contentView quando apre il modale
-                dismiss() //chiude la schermata modale
+                onExperienceAdded()
+                dismiss()
             }
         } catch {
             print("Errore durante il salvataggio dei dati su Supabase: \(error)")
