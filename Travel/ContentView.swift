@@ -16,6 +16,7 @@ struct ContentView: View {
     @State private var showingAddView = false // stato per aprire/chiudere il modulo
     @State private var showAlert = false
     @State private var alertMessage = ""
+    
 
     var body: some View {
         NavigationStack { //contenitore di navigazione std di iOS

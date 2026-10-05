@@ -31,7 +31,13 @@ struct AddExperienceView: View {
     @State private var selectedDifficolta : DifficoltaEnum = .easy
     @State private var showAlert = false
     @State private var alertMessage = ""
-    @StateObject private var locationSearch = LocationSearchViewModel()
+    
+    // ViewModel distinti per evitare conflitti tra le tendine
+    @StateObject private var partenzaSearch = LocationSearchViewModel()
+    @StateObject private var stepSearch = LocationSearchViewModel()
+    @State private var activeSearchIndex: Int? = nil // Traccia quale campo di tappa sta cercando
+    
+    @State private var isEditingStarted = false
     
     // Gestione delle tappe: la prima è sempre presente (obbligatoria), fino a un massimo di 5
     @State private var stepsArray: [String] = [""]
@@ -67,7 +73,7 @@ struct AddExperienceView: View {
                  
                 Section(header: Text("Informazioni Generali *")) {
                     TextField("Titolo", text: $title)
-                    TextField("Prezzo", text: $price)
+                    TextField("Prezzo (€)", text: $price).keyboardType(.decimalPad)
                 }
                  
                 Section(header: Text("Seleziona la difficoltà")) {
@@ -80,32 +86,39 @@ struct AddExperienceView: View {
                 }
 
                 Section(header: Text("Dettagli Percorso *")) {
-                    // Campo di testo per la partenza con ricerca in tempo reale
+                    // Campo di testo per la partenza con ricerca dedicata
                     TextField("Città / Luogo di Partenza", text: $partenza)
                         .onChange(of: partenza) { _, newValue in
-                            locationSearch.updateQuery(query: newValue)
+                            if isEditingStarted {
+                                activeSearchIndex = nil // Azzeriamo il focus delle tappe
+                                partenzaSearch.updateQuery(query: newValue)
+                            }
                         }
                      
-                    // Lista a tendina per la partenza
-                    if !locationSearch.searchResults.isEmpty && !partenza.isEmpty {
-                        ForEach(locationSearch.searchResults.prefix(5), id: \.self) { result in
-                            Button(action: {
+                    // Lista a tendina per la partenza (Risolto con Button per il singolo click)
+                    if isEditingStarted && activeSearchIndex == nil && !partenzaSearch.searchResults.isEmpty && !partenza.isEmpty {
+                        ForEach(partenzaSearch.searchResults.prefix(5), id: \.self) { result in
+                            Button {
                                 partenza = "\(result.title), \(result.subtitle)"
-                                locationSearch.searchResults = []
-                            }) {
-                                VStack(alignment: .leading) {
+                                partenzaSearch.searchResults = []
+                            } label: {
+                                VStack(alignment: .leading, spacing: 2) {
                                     Text(result.title)
                                         .foregroundColor(.primary)
                                     Text(result.subtitle)
                                         .font(.caption)
                                         .foregroundColor(.secondary)
                                 }
+                                .padding(.vertical, 6)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle()) // Rende cliccabile tutto lo spazio bianco della riga
                             }
+                            .buttonStyle(.plain)
                         }
                     }
                      
-                    TextField("Chilometri (km)", text: $km)
-                    TextField("Durata (ore)", text: $durata)
+                    TextField("Chilometri (km)", text: $km).keyboardType(.decimalPad)
+                    TextField("Durata (ore)", text: $durata).keyboardType(.decimalPad)
                 }
 
                 Section(header: Text("Immagine di Copertina")) {
@@ -128,19 +141,25 @@ struct AddExperienceView: View {
                     TextField("Link Google Maps (opzionale)", text: $linkMaps)
                 }
 
-                // Sezione tappe con ricerca e tendina integrata per ciascuna riga
+                // Sezione tappe con ricerca isolata per ogni singola riga
                 Section(header: Text("Principali tappe"), footer: Text("La prima tappa è obbligatoria. Puoi aggiungerne fino ad altre 4 opzionali.")) {
                     ForEach(0..<stepsArray.count, id: \.self) { index in
                         VStack(alignment: .leading) {
                             HStack {
                                 TextField(index == 0 ? "Tappa 1 (Obbligatoria)" : "Tappa \(index + 1) (Opzionale)", text: $stepsArray[index])
                                     .onChange(of: stepsArray[index]) { _, newValue in
-                                        locationSearch.updateQuery(query: newValue)
+                                        if isEditingStarted {
+                                            activeSearchIndex = index // Impostiamo quale indice sta scrivendo
+                                            stepSearch.updateQuery(query: newValue)
+                                        }
                                     }
                                  
                                 if stepsArray.count > 1 {
                                     Button(action: {
                                         stepsArray.remove(at: index)
+                                        if activeSearchIndex == index {
+                                            activeSearchIndex = nil
+                                        }
                                     }) {
                                         Image(systemName: "minus.circle.fill")
                                             .foregroundColor(.red)
@@ -148,21 +167,26 @@ struct AddExperienceView: View {
                                 }
                             }
                              
-                            // Tendina suggerimenti per questa specifica tappa
-                            if !locationSearch.searchResults.isEmpty && !stepsArray[index].isEmpty {
-                                ForEach(locationSearch.searchResults.prefix(5), id: \.self) { result in
-                                    Button(action: {
+                            // Tendina suggerimenti attiva SOLO per questa specifica tappa (Risolto con Button)
+                            if isEditingStarted && activeSearchIndex == index && !stepSearch.searchResults.isEmpty && !stepsArray[index].isEmpty {
+                                ForEach(stepSearch.searchResults.prefix(5), id: \.self) { result in
+                                    Button {
                                         stepsArray[index] = "\(result.title), \(result.subtitle)"
-                                        locationSearch.searchResults = []
-                                    }) {
-                                        VStack(alignment: .leading) {
+                                        stepSearch.searchResults = []
+                                        activeSearchIndex = nil
+                                    } label: {
+                                        VStack(alignment: .leading, spacing: 2) {
                                             Text(result.title)
                                                 .foregroundColor(.primary)
                                             Text(result.subtitle)
                                                 .font(.caption)
                                                 .foregroundColor(.secondary)
                                         }
+                                        .padding(.vertical, 6)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .contentShape(Rectangle()) // Rende cliccabile tutto lo spazio bianco della riga
                                     }
+                                    .buttonStyle(.plain)
                                 }
                             }
                         }
@@ -180,6 +204,7 @@ struct AddExperienceView: View {
                     }
                 }
             }
+            .scrollDismissesKeyboard(.immediately) // Chiude la tastiera subito al primo tocco
             .navigationTitle(experienceToEdit == nil ? "Nuova esperienza" : "Modifica esperienza")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -217,13 +242,15 @@ struct AddExperienceView: View {
                         stepsArray = exp.steps
                     }
                 }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    isEditingStarted = true
+                }
             }
         }
     }
          
     // Funzione asincrona di validazione e salvataggio
     private func saveExperience() async {
-        // 1. CONTROLLO CAMPI OBBLIGATORI
         let trimmedTitle = title.trimmingCharacters(in: .whitespaces)
         let trimmedPartenza = partenza.trimmingCharacters(in: .whitespaces)
         let cleanedSteps = stepsArray.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
@@ -242,12 +269,10 @@ struct AddExperienceView: View {
             return
         }
          
-        // 2. VALIDAZIONE SEVERA: La partenza e le tappe devono contenere una località valida con formato standard (es. con la virgola della tendina)
         var locationsToVerify = [trimmedPartenza]
         locationsToVerify.append(contentsOf: cleanedSteps)
          
         for location in locationsToVerify {
-            // Se la stringa inserita non contiene una virgola (significa che non è stata selezionata dalla tendina ufficiale)
             if !location.contains(",") {
                 await MainActor.run {
                     self.alertMessage = "Il luogo '\(location)' non è valido. Seleziona un indirizzo ufficiale dai suggerimenti della lista."
@@ -255,8 +280,7 @@ struct AddExperienceView: View {
                 }
                 return
             }
-            
-            // Controllo supplementare con MapKit
+             
             let request = MKLocalSearch.Request()
             request.naturalLanguageQuery = location
             let search = MKLocalSearch(request: request)
@@ -278,8 +302,7 @@ struct AddExperienceView: View {
                 return
             }
         }
-        
-
+         
         let priceDouble = Double(price) ?? 0.0
         let kmDouble = Double(km) ?? 0.0
         let durataDouble = Double(durata) ?? 0.0
