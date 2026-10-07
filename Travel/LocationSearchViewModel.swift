@@ -3,7 +3,7 @@
 //  Travel
 //
 //  Created by Alessandro Contarini on 05/10/2026.
-// Interroga le mappe di Apple in base a quello che digiti
+//  Interroga le mappe di Apple in base a quello che digiti
 
 
 import MapKit
@@ -16,7 +16,8 @@ class LocationSearchViewModel: NSObject, ObservableObject, MKLocalSearchComplete
     override init() {
         super.init()
         completer.delegate = self
-        completer.resultTypes = .address // Cerca indirizzi, città e punti di interesse
+        // Abilita sia gli indirizzi fisici che i punti di interesse (bar, rifugi, monumenti, ecc.)
+        completer.resultTypes = [.address, .pointOfInterest]
     }
     
     func updateQuery(query: String) {

@@ -73,7 +73,12 @@ struct AddExperienceView: View {
                  
                 Section(header: Text("Informazioni Generali *")) {
                     TextField("Titolo", text: $title)
-                    TextField("Prezzo (€)", text: $price).keyboardType(.decimalPad)
+                    TextField("Prezzo (€)", text: $price)
+                        .keyboardType(.decimalPad)
+                        //_ è il valore vecchio di price (ignorato), mentre in separa i parametri dal corpo
+                        .onChange(of: price){ _, newValue in
+                            price = newValue.replacingOccurrences(of: ",", with: ".")
+                        }
                 }
                  
                 Section(header: Text("Seleziona la difficoltà")) {
@@ -117,8 +122,16 @@ struct AddExperienceView: View {
                         }
                     }
                      
-                    TextField("Chilometri (km)", text: $km).keyboardType(.decimalPad)
-                    TextField("Durata (ore)", text: $durata).keyboardType(.decimalPad)
+                    TextField("Chilometri (km)", text: $km)
+                        .keyboardType(.decimalPad)
+                        .onChange(of: km){ _, newValue in
+                            km = newValue.replacingOccurrences(of: ",", with: ".")
+                        }
+                    TextField("Durata (ore)", text: $durata)
+                        .keyboardType(.decimalPad)
+                        .onChange(of: durata){ _, newValue in
+                            durata = newValue.replacingOccurrences(of: ",", with: ".")
+                        }
                 }
 
                 Section(header: Text("Immagine di Copertina")) {
