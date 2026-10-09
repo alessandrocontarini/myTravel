@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Supabase
 
 struct AuthView: View {
     @State private var email = ""
@@ -13,6 +14,11 @@ struct AuthView: View {
     @State private var isSignUp = false // Alterna tra Login e Registrazione
     @State private var errorMessage: String? = nil
     @State private var isLoading = false
+    @State private var resetMessage = ""
+    @State private var showingPasswordResetAlert = false
+    
+    
+    
 
     var body: some View {
         NavigationStack {
@@ -71,6 +77,7 @@ struct AuthView: View {
                 }
                 .padding(.horizontal)
                 .disabled(email.isEmpty || password.isEmpty)
+                
 
                 Button(action: {
                     isSignUp.toggle()
@@ -80,10 +87,23 @@ struct AuthView: View {
                         .foregroundColor(.blue)
                 }
                 .padding(.top)
+                
+                Button("Password dimenticata?") {
+                    Task {
+                        await resetPassword()
+                    }
+                }
+                .font(.footnote)
+                .padding(.top, 5)
 
                 Spacer()
             }
             .padding(.top, 50)
+            .alert("Recupero Password", isPresented: $showingPasswordResetAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(resetMessage)
+            }
         }
     }
 
@@ -109,5 +129,33 @@ struct AuthView: View {
         }
         
         isLoading = false
+    }
+    
+    // Funzione da inserire dentro la struct di AuthView
+    func resetPassword() async {
+        let trimmedEmail = email.trimmingCharacters(in: .whitespaces)
+        
+        guard !trimmedEmail.isEmpty else {
+            await MainActor.run {
+                resetMessage = "Inserisci prima la tua email nel campo di testo."
+                showingPasswordResetAlert = true
+            }
+            return
+        }
+        
+        do {
+            // Chiamata a Supabase per il reset della password
+            try await SupabaseManager.shared.client.auth.resetPasswordForEmail(trimmedEmail)
+            
+            await MainActor.run {
+                resetMessage = "Controlla la tua casella di posta! Ti abbiamo inviato le istruzioni per reimpostare la password."
+                showingPasswordResetAlert = true
+            }
+        } catch {
+            await MainActor.run {
+                resetMessage = "Errore durante l'invio: \(error.localizedDescription)"
+                showingPasswordResetAlert = true
+            }
+        }
     }
 }
